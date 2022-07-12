@@ -1,6 +1,9 @@
 .DS_Store
 .temp/
 
+# nile artifacts
+artifacts/
+
 # asdf
 .tool-versions
 
