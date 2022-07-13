@@ -1,9 +1,9 @@
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
-from contracts.access.ownable import Ownable
+from openzeppelin.access.ownable import Ownable
 from starkware.starknet.common.syscalls import get_caller_address
-from starkware.cairo.common.math import assert_le, sign
+from starkware.cairo.common.math import assert_le, assert_not_equal, sign
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.bitwise import bitwise_and, BitwiseBuiltin
 
@@ -54,6 +54,7 @@ func fight{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : Bitwi
     alloc_locals
 
     _assertOwnerOf(player)
+    _assertDifferentOwner(player, opponent)
 
     let (player_stuff : felt) = _stuff{bitwise_ptr=bitwise_ptr}(player)
     let (opponent_stuff : felt) = _stuff(opponent)
@@ -116,12 +117,20 @@ func _assertOwnerOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_chec
 ):
     let (owner : felt) = owners.read(thingId)
     let (caller : felt) = get_caller_address()
-
-    if caller != owner:
-        owner = owner + 1
+    with_attr error_message("caller is not the owner of this asset"):
+        assert owner = caller
     end
     return ()
 end
+
+func _assertDifferentOwner{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(thingId1, thingId2):
+    alloc_locals
+    let (owner1: felt) = owners.read(thingId1)
+    let (owner2: felt) = owners.read(thingId2)
+    assert_not_equal(owner1, owner2)
+    return ()
+end
+
 
 
 @storage_var
