@@ -5,11 +5,7 @@ from contracts.access.ownable import Ownable
 from starkware.starknet.common.syscalls import get_caller_address
 from starkware.cairo.common.math import assert_le, sign
 from starkware.cairo.common.hash import hash2
-
-struct Position:
-    member x : felt
-    member y : felt
-end
+from starkware.cairo.common.bitwise import bitwise_and, BitwiseBuiltin
 
 @constructor
 func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
@@ -52,28 +48,40 @@ func _processLoss{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
 end
 
 @external
-func battle{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+func fight{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr}(
     player : felt, opponent : felt
 ) -> (battlle : felt):
     alloc_locals
 
     _assertOwnerOf(player)
 
-    let (player_stuff : felt) = stuff.read(player)
-    let (opponent_stuff : felt) = stuff.read(opponent)
+    let (player_stuff : felt) = _stuff{bitwise_ptr=bitwise_ptr}(player)
+    let (opponent_stuff : felt) = _stuff(opponent)
     let (player_won : felt) = sign(player_stuff - opponent_stuff)
 
     if player_won == 1:
         _processWin(player)
         _processLoss(opponent)
-        let battle = 'you won'
-        return (battle)
+        Fight.emit(player, opponent)
+        let fight = 'you won'
+        return (fight)
     else:
         _processLoss(player)
         _processWin(opponent)
-        let battle = 'you lost'
-        return (battle)
+        let fight = 'you lost'
+        Fight.emit(opponent, player)
+        return (fight)
     end
+end
+
+func _stuff{syscall_ptr: felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr}(thingId: felt) -> (_stuff: felt):
+    alloc_locals
+    let (numThings) = league_size.read()
+    let prod = thingId * numThings
+    let (_stuff: felt) = bitwise_and(prod, 0xffffffffffffffffffffffffffffffff)
+    
+    return (_stuff)
+
 end
 
 @external
@@ -83,28 +91,30 @@ func mint{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(nam
     alloc_locals
     let (caller : felt) = get_caller_address()
     let (sizeLeague : felt) = league_size.read()
-    let (thingId : felt) = _thingId{hash_ptr=pedersen_ptr}(name, caller)
+    let (thingId : felt) = _thingId(name, caller)
     league_size.write(sizeLeague + 1)
+    owners.write(thingId, caller)
+
+    Mint.emit(caller, thingId)
+
     return (thingId)
 end
 
-func _thingId{
-    syscall_ptr : felt*, hash_ptr : HashBuiltin*, pedersen_ptr : HashBuiltin*, range_check_ptr
-}(name : felt, addr : felt) -> (_thingId : felt):
-    let (numThings : felt) = league_size.read()
-    let (_thingId : felt) = hash2(name * numThings, addr / numThings)
+func _thingId{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    name : felt, addr : felt
+) -> (_thingId : felt):
+    pedersen_ptr.x = name
+    pedersen_ptr.y = addr
+    let _thingId = pedersen_ptr.result
+    let pedersen_ptr = pedersen_ptr + HashBuiltin.SIZE
+
     return (_thingId)
 end
 
-func _initializeThing(thingId : felt):
-    # names
-    # wins
-    # losses
-
-    return ()
-end
-
-func _assertOwnerOf{syscall_ptr : felt*}(owner : felt):
+func _assertOwnerOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    thingId : felt
+):
+    let (owner : felt) = owners.read(thingId)
     let (caller : felt) = get_caller_address()
 
     if caller != owner:
@@ -113,17 +123,9 @@ func _assertOwnerOf{syscall_ptr : felt*}(owner : felt):
     return ()
 end
 
+
 @storage_var
-func stuff(thingId : felt) -> (stuff : felt):
-end
-
-func _stuff{
-    syscall_ptr : felt*, hash_ptr : HashBuiltin*, pedersen_ptr : HashBuiltin*, range_check_ptr
-}(thingId : felt) -> (_stuff : felt):
-    let (_name : felt) = names.read(thingId)
-    let (_stuff) = hash2(_name, thingId)
-
-    return (_stuff)
+func owners(thingId : felt) -> (owner : felt):
 end
 
 @storage_var
@@ -135,11 +137,7 @@ func wins(thingId : felt) -> (wins : felt):
 end
 
 @storage_var
-func losses(thingId : felt) -> (wins : felt):
-end
-
-@storage_var
-func level(thingId : felt) -> (wins : felt):
+func losses(thingId : felt) -> (losses : felt):
 end
 
 @storage_var
@@ -148,4 +146,12 @@ end
 
 @storage_var
 func league_size() -> (league_size : felt):
+end
+
+@event
+func Fight(winner : felt, loser : felt):
+end
+
+@event
+func Mint(owner : felt, thingId : felt):
 end
