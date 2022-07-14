@@ -3,9 +3,16 @@
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from openzeppelin.access.ownable import Ownable
 from starkware.starknet.common.syscalls import get_caller_address
-from starkware.cairo.common.math import assert_le, assert_not_equal, sign
+from starkware.cairo.common.math import assert_le, assert_not_equal, sign, assert_not_zero
 from starkware.cairo.common.hash import hash2
 from starkware.cairo.common.bitwise import bitwise_and, BitwiseBuiltin
+
+struct thing:
+    member thingId : felt
+    member name : felt
+    member wins : felt
+    member losses : felt
+end
 
 @constructor
 func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
@@ -31,122 +38,136 @@ func owner{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() 
     return (owner)
 end
 
-func _processWin{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(thingId : felt):
-    let (playerWins : felt) = wins.read(thingId)
-    wins.write(thingId, playerWins + 1)
-
-    return ()
+func _processWin{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    owner : felt
+) -> (updated : thing):
+    alloc_locals
+    let (player : thing) = things.read(owner)
+    let updated = thing(player.name, player.thingId, player.wins, player.losses + 1)
+    things.write(owner, updated)
+    return (updated)
 end
 
 func _processLoss{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    thingId : felt
-):
-    let (playerLosses : felt) = losses.read(thingId)
-    wins.write(thingId, playerLosses + 1)
-
-    return ()
+    owner : felt
+) -> (updated : thing):
+    alloc_locals
+    let (player : thing) = things.read(owner)
+    let updated = thing(player.name, player.thingId, player.wins, player.losses + 1)
+    things.write(owner, updated)
+    return (updated)
 end
 
 @external
-func fight{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr}(
-    player : felt, opponent : felt
-) -> (battlle : felt):
+func fight{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}(opponentId : felt) -> (fight : felt):
     alloc_locals
+    # get the caller thing
+    let (caller : felt) = get_caller_address()
+    let (player : thing) = things.read(caller)
 
-    _assertOwnerOf(player)
-    _assertDifferentOwner(player, opponent)
+    # assert we got a valid thing
+    assert_not_zero(player.thingId)
+
+    let (opponent : thing) = _thingFromThingId(opponentId)
+    assert_not_zero(opponent.thingId)
+
+    let (opponentOwnerId : felt) = owners.read(opponentId)
+    assert_not_zero(opponentOwnerId)
 
     let (player_stuff : felt) = _stuff{bitwise_ptr=bitwise_ptr}(player)
-    let (opponent_stuff : felt) = _stuff(opponent)
+    let (opponent_stuff : felt) = _stuff{bitwise_ptr=bitwise_ptr}(opponent)
     let (player_won : felt) = sign(player_stuff - opponent_stuff)
 
     if player_won == 1:
-        _processWin(player)
-        _processLoss(opponent)
-        Fight.emit(player, opponent)
+        _processWin(caller)
+        _processLoss(opponentOwnerId)
+        Fight.emit(caller, opponentOwnerId)
         let fight = 'you won'
         return (fight)
     else:
-        _processLoss(player)
-        _processWin(opponent)
+        _processLoss(caller)
+        _processWin(opponentOwnerId)
+        Fight.emit(caller, opponentOwnerId)
         let fight = 'you lost'
-        Fight.emit(opponent, player)
         return (fight)
     end
 end
 
-func _stuff{syscall_ptr: felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr}(thingId: felt) -> (_stuff: felt):
+func _stuff{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}(player : thing) -> (_stuff : felt):
     alloc_locals
-    let (numThings) = league_size.read()
-    let prod = thingId * numThings
-    let (_stuff: felt) = bitwise_and(prod, 0xffffffffffffffffffffffffffffffff)
-    
-    return (_stuff)
 
+    let (numThings) = league_size.read()
+    let prod = player.thingId * (numThings + 123)
+
+    let (_intermediate : felt) = hash2{hash_ptr=pedersen_ptr}(prod, numThings)
+    let (_stuff : felt) = bitwise_and(_intermediate, 0xfffffffffffffffff)
+    return (_stuff)
 end
 
 @external
-func mint{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(name : felt) -> (
-    thingId : felt
-):
+func mint{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}(name : felt) -> (thingId : felt):
     alloc_locals
+
+    # get caller address
     let (caller : felt) = get_caller_address()
     let (sizeLeague : felt) = league_size.read()
+
+    # calc thingId
     let (thingId : felt) = _thingId(name, caller)
-    league_size.write(sizeLeague + 1)
+    assert_not_zero(name)
+    assert_not_zero(thingId)
+
+    # create player
+    let player = thing(thingId, name, 0, 0)
+
+    # write player
+    things.write(caller, player)
     owners.write(thingId, caller)
+
+    league_size.write(sizeLeague + 1)
 
     Mint.emit(caller, thingId)
 
     return (thingId)
 end
 
-func _thingId{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    name : felt, addr : felt
-) -> (_thingId : felt):
-    pedersen_ptr.x = name
-    pedersen_ptr.y = addr
-    let _thingId = pedersen_ptr.result
-    let pedersen_ptr = pedersen_ptr + HashBuiltin.SIZE
-
-    return (_thingId)
-end
-
-func _assertOwnerOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    thingId : felt
-):
+func _thingFromThingId{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}(thingId : felt) -> (_thing : thing):
     let (owner : felt) = owners.read(thingId)
+    assert_not_zero(owner)
+    let (_thing : thing) = things.read(owner)
+    assert_not_zero(_thing.thingId)
+    return (_thing)
+end
+
+@view
+func me{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (me : thing):
     let (caller : felt) = get_caller_address()
-    with_attr error_message("caller is not the owner of this asset"):
-        assert owner = caller
-    end
-    return ()
+    let (me : thing) = things.read(caller)
+
+    return (me)
 end
 
-func _assertDifferentOwner{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(thingId1, thingId2):
-    alloc_locals
-    let (owner1: felt) = owners.read(thingId1)
-    let (owner2: felt) = owners.read(thingId2)
-    assert_not_equal(owner1, owner2)
-    return ()
-end
-
-
-
-@storage_var
-func owners(thingId : felt) -> (owner : felt):
+func _thingId{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}(name : felt, addr : felt) -> (_thingId : felt):
+    let intermediate = addr / name
+    let intermediate1 = intermediate / addr
+    let (thingNum : felt) = league_size.read()
+    let (intermediate2 : felt) = hash2{hash_ptr=pedersen_ptr}(intermediate1, intermediate)
+    let (thingId : felt) = bitwise_and(intermediate2, 0xfffffffffffffffffffffffffffff)
+    return (thingId)
 end
 
 @storage_var
-func names(thingId : felt) -> (name : felt):
-end
-
-@storage_var
-func wins(thingId : felt) -> (wins : felt):
-end
-
-@storage_var
-func losses(thingId : felt) -> (losses : felt):
+func things(owner : felt) -> (things : thing):
 end
 
 @storage_var
@@ -155,6 +176,10 @@ end
 
 @storage_var
 func league_size() -> (league_size : felt):
+end
+
+@storage_var
+func owners(thingId : felt) -> (owners : felt):
 end
 
 @event

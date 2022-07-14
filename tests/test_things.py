@@ -37,11 +37,20 @@ async def fight_thing(
     signer: MockSigner,
     contract: StarknetContract,
     sender: StarknetContract,
-    player: int,
     opponent: int
 ):
     return await signer.send_transaction(
-        sender, contract.contract_address, "fight", calldata=[player, opponent]
+        sender, contract.contract_address, "fight", calldata=[opponent]
+    )
+
+
+async def me(
+    signer: MockSigner,
+    contract: StarknetContract,
+    sender: StarknetContract,
+):
+    return await signer.send_transaction(
+        sender, contract.contract_address, "me", calldata=[]
     )
 
 
@@ -85,6 +94,35 @@ async def test_mint():
 
 
 @pytest.mark.asyncio
+async def test_me():
+    """Test me method."""
+
+    starknet = await Starknet.empty()
+
+    contract = await deploy_thing(starknet)
+
+    THING_1 = 'thing1'
+
+    signer1 = MockSigner(string_to_int(THING_1))
+
+    account1 = await account(starknet, signer1)
+    mintResult1 = await mint_thing(
+        signer1,
+        contract,
+        account1,
+        THING_1
+    )
+
+    result = await me(
+        signer1,
+        contract,
+        account1
+    )
+
+    assert mintResult1.result.response[0] == result.result.response[0]
+
+
+@pytest.mark.asyncio
 async def test_fight():
     """Test fight method."""
 
@@ -118,7 +156,6 @@ async def test_fight():
         signer1,
         contract,
         account1,
-        mintResult1.result.response[0],
         mintResult2.result.response[0]
     )
 
@@ -126,87 +163,11 @@ async def test_fight():
         signer2,
         contract,
         account2,
-        mintResult2.result.response[0],
         mintResult1.result.response[0]
     )
+
     fightResult1Str = int_to_string(fightResult1.result.response[0])
     fightResult2Str = int_to_string(fightResult2.result.response[0])
 
     assert sorted([MSG_LOST, MSG_WON]) == sorted(
         [fightResult1Str, fightResult2Str])
-
-
-@pytest.mark.asyncio
-async def test_fight_non_owner():
-    """Test fight method called by non-owner of thing."""
-
-    starknet = await Starknet.empty()
-
-    contract = await deploy_thing(starknet)
-
-    THING_1 = 'thing1'
-    THING_2 = 'thing2'
-
-    signer1 = MockSigner(string_to_int(THING_1))
-    signer2 = MockSigner(string_to_int(THING_2))
-
-    account1 = await account(starknet, signer1)
-    account2 = await account(starknet, signer2)
-    mintResult1 = await mint_thing(
-        signer1,
-        contract,
-        account1,
-        THING_1
-    )
-
-    mintResult2 = await mint_thing(
-        signer2,
-        contract,
-        account2,
-        THING_2
-    )
-    with pytest.raises(Exception):
-        await fight_thing(
-            signer1,
-            contract,
-            account1,
-            mintResult2.result.response[0],
-            mintResult1.result.response[0]
-        )
-
-
-@pytest.mark.asyncio
-async def test_fight_same_owner():
-    """Test fight method with two things of the same owner."""
-
-    starknet = await Starknet.empty()
-
-    contract = await deploy_thing(starknet)
-
-    THING_1 = 'thing1'
-    THING_2 = 'thing2'
-
-    signer1 = MockSigner(string_to_int(THING_1))
-    account1 = await account(starknet, signer1)
-
-    mintResult1 = await mint_thing(
-        signer1,
-        contract,
-        account1,
-        THING_1
-    )
-
-    mintResult2 = await mint_thing(
-        signer1,
-        contract,
-        account1,
-        THING_2
-    )
-    with pytest.raises(Exception):
-        await fight_thing(
-            signer1,
-            contract,
-            account1,
-            mintResult1.result.response[0],
-            mintResult2.result.response[0]
-        )
