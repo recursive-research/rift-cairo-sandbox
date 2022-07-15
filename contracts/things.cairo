@@ -111,15 +111,14 @@ end
 @external
 func mint{
     syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
-}(name : felt) -> (thingId : felt):
+}(to : felt, name : felt) -> (thingId : felt):
     alloc_locals
 
     # get caller address
-    let (caller : felt) = get_caller_address()
     let (sizeLeague : felt) = league_size.read()
 
     # calc thingId
-    let (thingId : felt) = _thingId(name, caller)
+    let (thingId : felt) = _thingId(name, to)
     assert_not_zero(name)
     assert_not_zero(thingId)
 
@@ -127,12 +126,12 @@ func mint{
     let player = thing(thingId, name, 0, 0)
 
     # write player
-    things.write(caller, player)
-    owners.write(thingId, caller)
+    things.write(to, player)
+    owners.write(thingId, to)
 
     league_size.write(sizeLeague + 1)
 
-    Mint.emit(caller, thingId)
+    Mint.emit(to, thingId)
 
     return (thingId)
 end
@@ -148,11 +147,9 @@ func _thingFromThingId{
 end
 
 @view
-func me{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (me : thing):
-    let (caller : felt) = get_caller_address()
-    let (me : thing) = things.read(caller)
-
-    return (me)
+func thingOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(owner : felt) -> (t : thing):
+    let (t : thing) = things.read(owner)
+    return (t)
 end
 
 func _thingId{
