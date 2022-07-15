@@ -32,6 +32,7 @@ def contract_path(name):
 
     return str(_root / name)
 
+
 def str_to_felt(text):
     b_text = bytes(text, "ascii")
     return int.from_bytes(b_text, "big")
@@ -134,11 +135,13 @@ def cached_contract(state, _class, deployed):
     )
     return contract
 
+
 async def account(starknet, signer):
     account_cls = get_contract_class("openzeppelin/account/Account.cairo")
     return await starknet.deploy(
         contract_class=account_cls, constructor_calldata=[signer.public_key]
     )
+
 
 def string_to_int(string: str) -> int:
     return sum([ord(string[i]) << 8*(len(string) - (i+1)) for i in range(len(string))])
@@ -153,4 +156,3 @@ def int_to_string(val: int) -> str:
         chr_ord = (val >> 8*offset) & BYTE_MASK
         out = chr(chr_ord) + out
         offset += 1
-

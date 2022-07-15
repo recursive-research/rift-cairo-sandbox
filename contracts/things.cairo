@@ -19,7 +19,7 @@ func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_p
     league_ : felt, owner_ : felt
 ):
     Ownable.initializer(owner_)
-    league.write(league_)
+    _league.write(league_)
     return ()
 end
 
@@ -43,7 +43,7 @@ func _processWin{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_p
 ) -> (updated : thing):
     alloc_locals
     let (player : thing) = things.read(owner)
-    let updated = thing(player.name, player.thingId, player.wins, player.losses + 1)
+    let updated = thing(player.thingId, player.name, player.wins + 1, player.losses)
     things.write(owner, updated)
     return (updated)
 end
@@ -53,7 +53,7 @@ func _processLoss{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
 ) -> (updated : thing):
     alloc_locals
     let (player : thing) = things.read(owner)
-    let updated = thing(player.name, player.thingId, player.wins, player.losses + 1)
+    let updated = thing(player.thingId, player.name, player.wins, player.losses + 1)
     things.write(owner, updated)
     return (updated)
 end
@@ -147,9 +147,19 @@ func _thingFromThingId{
 end
 
 @view
-func thingOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(owner : felt) -> (t : thing):
+func thingOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(owner : felt) -> (
+    t : thing
+):
     let (t : thing) = things.read(owner)
     return (t)
+end
+
+@view
+func league{
+    syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, bitwise_ptr : BitwiseBuiltin*, range_check_ptr
+}() -> (league : felt):
+    let (league : felt) = _league.read()
+    return (league)
 end
 
 func _thingId{
@@ -168,7 +178,7 @@ func things(owner : felt) -> (things : thing):
 end
 
 @storage_var
-func league() -> (league : felt):
+func _league() -> (league : felt):
 end
 
 @storage_var
