@@ -1,0 +1,166 @@
+[
+    {
+        "members": [
+            {
+                "name": "thingId",
+                "offset": 0,
+                "type": "felt"
+            },
+            {
+                "name": "name",
+                "offset": 1,
+                "type": "felt"
+            },
+            {
+                "name": "wins",
+                "offset": 2,
+                "type": "felt"
+            },
+            {
+                "name": "losses",
+                "offset": 3,
+                "type": "felt"
+            }
+        ],
+        "name": "thing",
+        "size": 4,
+        "type": "struct"
+    },
+    {
+        "data": [
+            {
+                "name": "previousOwner",
+                "type": "felt"
+            },
+            {
+                "name": "newOwner",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "OwnershipTransferred",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "name": "league_",
+                "type": "felt"
+            },
+            {
+                "name": "owner_",
+                "type": "felt"
+            }
+        ],
+        "name": "constructor",
+        "outputs": [],
+        "type": "constructor"
+    },
+    {
+        "inputs": [],
+        "name": "leagueSize",
+        "outputs": [
+            {
+                "name": "leagueSize",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [
+            {
+                "name": "owner",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "opponentId",
+                "type": "felt"
+            }
+        ],
+        "name": "fight",
+        "outputs": [
+            {
+                "name": "fight",
+                "type": "felt"
+            }
+        ],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "to",
+                "type": "felt"
+            },
+            {
+                "name": "name",
+                "type": "felt"
+            }
+        ],
+        "name": "mint",
+        "outputs": [
+            {
+                "name": "thingId",
+                "type": "felt"
+            }
+        ],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "owner",
+                "type": "felt"
+            }
+        ],
+        "name": "thingOf",
+        "outputs": [
+            {
+                "name": "t",
+                "type": "thing"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "data": [
+            {
+                "name": "winner",
+                "type": "felt"
+            },
+            {
+                "name": "loser",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Fight",
+        "type": "event"
+    },
+    {
+        "data": [
+            {
+                "name": "owner",
+                "type": "felt"
+            },
+            {
+                "name": "thingId",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "Mint",
+        "type": "event"
+    }
+]
